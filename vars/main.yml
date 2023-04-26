@@ -1,0 +1,8 @@
+---
+# vars file for ansible-role
+vault_addr: https://127.0.0.1:8433
+#vault_role_id: 5f0eee59-6679-8e7f-f384-7d36c3e585f9
+#vault_secret_id: 043feda4-c5d7-5d04-77a1-a00ee80cace3
+vault_secret_engine: secret
+vault_secret_path: config
+vault_secret_data: {user: youness, pass: mypass}

@@ -1,0 +1,8 @@
+- name: Stop Vault Docker container
+  community.docker.docker_compose:
+    project_src: "{{ role_path }}/files/"
+    build: no
+    state: absent
+    
+- name: Remove vault container volumes
+  shell: docker volume rm files_vault-data files_vault-logs

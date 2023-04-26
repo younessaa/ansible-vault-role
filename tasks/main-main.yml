@@ -1,0 +1,61 @@
+# tasks file for ansible-role
+- name: Run Vault Docker container
+  community.docker.docker_compose:
+    project_src: "{{ role_path }}/files/"
+    build: no
+    state: present
+   
+    
+- name: Run script to initialize & unseal vault
+  ansible.builtin.shell:
+    cmd: ./my-script.sh
+    chdir: "{{ role_path }}/files"
+
+- name: Run script to copy role_id & secret_id to "{{ role_path }}/vars/main.yml"
+  ansible.builtin.shell:
+    cmd: ./copy-keys-script.sh
+    chdir: "{{ role_path }}/files"
+    
+    
+
+- name: Set VAULT_ADDR environment variable
+  shell: export VAULT_ADDR="{{ vault_addr }}"
+    
+- name: Initialize Vault
+      hashivault_init:
+        secret_shares: 5
+        secret_threshold: 3
+        url: "{{ vault_addr }}"
+        pgp_keys:
+          - "keybase:mykey"
+      register: vault_init
+
+- name: Save unseal keys to file
+      copy:
+        content: "{{ item }}"
+        dest: "~/vault/unseal_key_{{ loop.index }}"
+      loop: "{{ vault_init.keys }}"
+
+- name: Save root token to file
+      copy:
+        content: "{{ vault_init.root_token }}"
+        dest: "~/vault/root_token"
+
+- name: Unseal Vault
+      hashivault_unseal:
+        key: "{{ item }}"
+        url: "{{ vault_addr }}"
+      with_items: "{{ vault_init.keys }}"
+      
+- name: Set VAULT_TOKEN environment variable
+  shell: export VAULT_TOKEN="{{ vault_init.root_token }}"
+    
+    
+
+
+
+    
+
+
+
+

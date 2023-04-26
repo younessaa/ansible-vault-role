@@ -1,0 +1,34 @@
+- name: Run Vault Docker container
+  community.docker.docker_compose:
+    project_src: "{{ role_path }}/files/"
+    build: no
+    state: present
+    
+- name: Run script to initialize & unseal vault
+  ansible.builtin.shell:
+    cmd: ./my-script.sh
+    chdir: "{{ role_path }}/files"
+
+    
+- name: Creating Vault policy
+  hashivault_policy:
+    name: myapprole-policy
+    rules_file: "{{ role_path }}/files/ansible-policy.hcl"
+
+- name: Creating Vault Approle
+  hashivault_approle_role:
+    name: ansible
+    policies:
+      - myapprole-policy
+
+- name: Retrieve an approle role ID from Vault
+  community.hashi_vault.vault_read:
+    path: auth/approle/role/ansible/role-id
+  register: approle_id
+  
+- name: Generate a secret-id for the given approle
+  community.hashi_vault.vault_write:
+    path: auth/approle/role/ansible/secret-id
+  register: secret_id
+      
+ 
