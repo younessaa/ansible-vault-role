@@ -26,7 +26,7 @@
     content: "{{ vault_init.root_token }}"
     dest: "~/vault/root_token"
 
-- name: Unseal Vault 1/3
+- name: Unseal Vault 1/3 --> 2/3 --> 3/3
   hashivault_unseal:
     keys: "{{ vault_init.keys_base64[index] }}"
     url: "{{ vault_addr }}"
