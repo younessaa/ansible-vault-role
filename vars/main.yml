@@ -4,3 +4,4 @@ vault_addr: https://127.0.0.1:8433
 vault_secret_engine: secret
 vault_secret_path: config
 vault_secret_data: {user: youness, pass: mypass}
+files_dir: /tmp/ansible-vault-files
