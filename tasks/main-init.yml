@@ -1,6 +1,17 @@
+- file: 
+    path: "{{ files_dir }}"
+    state: directory
+
+- name: Upload vault project files
+  synchronize: 
+    src: "{{ item }}"
+    dest: "{{ files_dir }}"
+  with_items:
+    - "{{ role_path }}/files/"
+
 - name: Run Vault Docker container
   community.docker.docker_compose:
-    project_src: "{{ role_path }}/files/"
+    project_src: "{{ files_dir }}/"
     build: no
     state: present
     
@@ -9,9 +20,11 @@
     secret_shares: 5
     secret_threshold: 3
     url: "{{ vault_addr }}"
-    ca_cert: "{{ role_path }}/files/vault.crt"
+    ca_cert: "{{ files_dir }}/vault.crt"
   register: vault_init
   
+- name: Create vault dir
+  shell: mkdir -p ~/vault/
 
 - name: Save unseal keys to file
   copy:
@@ -30,10 +43,70 @@
   hashivault_unseal:
     keys: "{{ vault_init.keys_base64[index] }}"
     url: "{{ vault_addr }}"
-    ca_cert: "{{ role_path }}/files/vault.crt"
+    ca_cert: "{{ files_dir }}/vault.crt"
   loop: "{{ vault_init.keys_base64 }}"
   loop_control:
     index_var: index
+
+
+
+
+
+
+
+- name: Creating Vault policy
+  hashivault_policy:
+    name: myapprole-policy
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    rules_file: "{{ files_dir }}/ansible-policy.hcl"
+    ca_cert: "{{ files_dir }}/vault.crt"
+    
+- name: Login to vault
+  shell: docker exec vault vault login --tls-skip-verify "{{ vault_init.root_token }}"
+  
+- name: Enable approle
+  shell: docker exec vault vault auth enable --tls-skip-verify approle
+
+- name: Enable secret engine in path secret
+  shell: docker exec vault vault secrets enable --tls-skip-verify -version=2 -path=secret kv
+
+- name: Creating Vault Approle
+  hashivault_approle_role:
+    name: ansible
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    ca_cert: "{{ files_dir }}/vault.crt"
+    token_policies:
+      - myapprole-policy
+
+- name: Retrieve an approle role ID from Vault
+  community.hashi_vault.vault_read:
+    path: auth/approle/role/ansible/role-id
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    ca_cert: "{{ files_dir }}/vault.crt"
+  register: approle_id
+  
+- name: Generate a secret-id for the given approle
+  community.hashi_vault.vault_write:
+    path: auth/approle/role/ansible/secret-id
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    ca_cert: "{{ files_dir }}/vault.crt"
+  register: secret_id
+  
+- name: Save approle_id to file
+  copy:
+    content: "{{ approle_id.data.data.role_id }}"
+    dest: "~/vault/approle_id.txt"
+    
+- name: Save secret_id to file
+  copy:
+    content: "{{ secret_id.data.data.secret_id }}"
+    dest: "~/vault/secret_id.txt"
+
+
 
 
       
@@ -41,3 +114,4 @@
 
       
  
+
