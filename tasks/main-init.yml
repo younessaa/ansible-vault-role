@@ -33,6 +33,7 @@
     secret_threshold: 3
     url: "{{ vault_addr }}"
     ca_cert: "{{ files_dir }}/vault.crt"
+    ca_path: "{{ files_dir }}/vault.crt"
   register: vault_init
   
 - name: Create vault dir
