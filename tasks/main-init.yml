@@ -1,3 +1,12 @@
+- name: Stop Vault Docker container
+  community.docker.docker_compose:
+    project_src: "{{ files_dir }}/"
+    build: no
+    state: absent
+    
+- name: Remove vault container volumes
+  shell: docker volume rm $(docker volume ls -qf "name=_vault-data" -qf "name=_vault-logs")
+
 - name: Remove the temporary directory /tmp/ansible-vault-files from the target VM
   shell: rm -rf /tmp/ansible-vault-files
 
