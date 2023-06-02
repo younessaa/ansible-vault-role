@@ -1,5 +1,5 @@
 - name: Remove the temporary directory /tmp/ansible-vault-files from the target VM
-  shell: rm -r /tmp/ansible-vault-files
+  shell: rm -rf /tmp/ansible-vault-files
 
 - file: 
     path: "{{ files_dir }}"
