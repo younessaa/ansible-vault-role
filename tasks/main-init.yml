@@ -1,25 +1,36 @@
+- name: Remove vault files dir
+  shell: rm -rf {{ files_dir  }}
+
+- name: Create vault files dir
+  file:
+    path: "{{ files_dir }}"
+    state: directory
+
+- name: Upload vault project files
+  synchronize:
+    src: "{{ item }}"
+    dest: "{{ files_dir }}"
+  with_items:
+    - "{{ role_path }}/files/"
+
+
+
+
+- name: "Get image name of container : vault"
+  docker_container_info:
+    name: "vault"
+  register: result
+
 - name: Stop Vault Docker container
   community.docker.docker_compose:
     project_src: "{{ files_dir }}/"
     build: no
     state: absent
-    
-- name: Remove vault container volumes
-  shell: docker volume rm $(docker volume ls -qf "name=_vault-data" -qf "name=_vault-logs")
+    remove_volumes: true
+  when: result.exists
 
-- name: Remove the temporary directory /tmp/ansible-vault-files from the target VM
-  shell: rm -rf /tmp/ansible-vault-files
 
-- file: 
-    path: "{{ files_dir }}"
-    state: directory
 
-- name: Upload vault project files
-  synchronize: 
-    src: "{{ item }}"
-    dest: "{{ files_dir }}"
-  with_items:
-    - "{{ role_path }}/files/"
 
 - name: Run Vault Docker container
   community.docker.docker_compose:
@@ -27,13 +38,16 @@
     build: no
     state: present
     
+- name: Pause for 15 seconds waiting for vault container to be UP
+  ansible.builtin.pause:
+    seconds: 15
+    
 - name: Initialize Vault
   hashivault_init:
     secret_shares: 5
     secret_threshold: 3
     url: "{{ vault_addr }}"
     ca_cert: "{{ files_dir }}/vault.crt"
-    ca_path: "{{ files_dir }}/vault.crt"
   register: vault_init
   
 - name: Create vault dir
@@ -67,12 +81,20 @@
 
 
 
-- name: Creating Vault policy
+- name: Creating Vault ansible policy
   hashivault_policy:
     name: myapprole-policy
     url: "{{ vault_addr }}"
     token: "{{ vault_init.root_token }}"
     rules_file: "{{ files_dir }}/ansible-policy.hcl"
+    ca_cert: "{{ files_dir }}/vault.crt"
+
+- name: Creating Vault application policy
+  hashivault_policy:
+    name: application-policy
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    rules_file: "{{ files_dir }}/application-policy.hcl"
     ca_cert: "{{ files_dir }}/vault.crt"
     
 - name: Login to vault
@@ -84,7 +106,7 @@
 - name: Enable secret engine in path secret
   shell: docker exec vault vault secrets enable --tls-skip-verify -version=2 -path=secret kv
 
-- name: Creating Vault Approle
+- name: Creating Vault Approle for Ansible
   hashivault_approle_role:
     name: ansible
     url: "{{ vault_addr }}"
@@ -119,12 +141,42 @@
     content: "{{ secret_id.data.data.secret_id }}"
     dest: "~/vault/secret_id.txt"
 
+- name: Creating Vault Approle for Applications
+  hashivault_approle_role:
+    name: ApplicationRole
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    ca_cert: "{{ files_dir }}/vault.crt"
+    token_policies:
+      - application-policy
 
-
-
+- name: Retrieve role ID of ApplicationRole
+  community.hashi_vault.vault_read:
+    path: auth/approle/role/ApplicationRole/role-id
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    ca_cert: "{{ files_dir }}/vault.crt"
+  register: app_approle_id
+  
+- name: Generate a secret-id for the given approle
+  community.hashi_vault.vault_write:
+    path: auth/approle/role/ApplicationRole/secret-id
+    url: "{{ vault_addr }}"
+    token: "{{ vault_init.root_token }}"
+    ca_cert: "{{ files_dir }}/vault.crt"
+  register: app_secret_id
+  
+- name: Save app_approle_id to file
+  copy:
+    content: "{{ approle_id.data.data.role_id }}"
+    dest: "~/vault/app_approle_id.txt"
+    
+- name: Save app_secret_id to file
+  copy:
+    content: "{{ secret_id.data.data.secret_id }}"
+    dest: "~/vault/app_secret_id.txt"
       
 
 
       
  
-
